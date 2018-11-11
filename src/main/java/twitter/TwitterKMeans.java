@@ -1,12 +1,14 @@
-package Assignment4;
+package twitter;
 
 import org.apache.spark.SparkConf;
+import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.mllib.clustering.KMeans;
 import org.apache.spark.mllib.clustering.KMeansModel;
 import org.apache.spark.mllib.linalg.Vector;
 import org.apache.spark.mllib.linalg.Vectors;
+import scala.Tuple2;
 
 public class TwitterKMeans {
 
@@ -51,13 +53,25 @@ public class TwitterKMeans {
 
 //        predict method of the model will accepts a vector of coordinates and returns the cluster
 //        index.
-//        To print the output, input data is iterated, split into array of Strings by ',',
+//        To predict the output, input data is iterated, split into array of Strings by ',',
 //        for each pair of coordinate in the data, call predict method to get the cluster.
-        textData.foreach(l -> {
-            String[] items = l.split(",");
-            int cluster = model.predict(Vectors.dense(Double.parseDouble(items[0]), Double.parseDouble(items[1])));
-            System.out.println("Tweet \"" + items[items.length-1] + "\" is in cluster " + cluster);
-        });
+//        Cluster index and Tweet are then stored as a pair in JavaPairRDD
+
+        JavaPairRDD<Integer, String> clusteredData =
+                textData.mapToPair(l -> {
+                    String[] items = l.split(",");
+                    int cluster = model.predict(Vectors.dense(Double.parseDouble(items[0]), Double.parseDouble(items[1])));
+                    return new Tuple2<>(cluster, items[items.length-1]);
+                });
+
+//        Sorting the paired data created in above step by Key (cluster Index)
+//        The sorted data is collected into a List
+//        And finally print each tweet with its corresponding cluster.
+        clusteredData
+                .sortByKey(true)   //        A boolean value "true" is to set the sort order to ascending
+                .collect()         //        The sorted data is collected into a List
+                .forEach(p -> System.out.println("Tweet \"" + p._2 + "\" is in cluster " + p._1));
+
 
 //        Shutdown the SparkContext
         jsc.stop();
